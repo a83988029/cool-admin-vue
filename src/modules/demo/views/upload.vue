@@ -3,6 +3,12 @@
 		<el-tabs type="card">
 			<el-tab-pane label="普通上传">
 				<cl-upload v-model="v1" />
+
+				<el-upload ref="uploader" v-model:file-list="fileList" :limit="3" :auto-upload="false" :on-change="handleChange">
+					<el-button size="small" type="primary">点击上传下行excel</el-button>
+				</el-upload>
+
+
 			</el-tab-pane>
 
 			<el-tab-pane label="多图上传" lazy>
@@ -57,6 +63,8 @@
 import { ref } from "vue";
 import { Upload } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
+// 引入xlsx
+import * as XLSX from 'xlsx';
 
 const v1 = ref("");
 const v2 = ref(
@@ -66,6 +74,9 @@ const v3 = ref("");
 const v4 = ref<string[]>([]);
 const v5 = ref<string>("");
 const v6 = ref<string[]>([]);
+//用来存放上传的文件
+const fileList = ref<any[]>([]);
+const uploader = ref<any>(null);
 
 function onConfirm(list: any[]) {
 	v4.value = list.map((e) => e.url);
@@ -80,6 +91,45 @@ function onBeforeUpload(file: any) {
 		}
 	});
 }
+
+// 解析上传的文件
+const handleChange = (file: any) => {
+	console.log(file);
+	// 如果不是excel文件，则清除fileList，并提示用户
+	if (file.name.split('.').pop() !== 'xlsx' && file.name.split('.').pop() !== 'xls') {
+		fileList.value = [];
+		uploader.value.clearFiles();
+		ElMessage.warning('请上传excel文件');
+		return;
+	}
+	// 解析el-upload返回的file对象，excel文件
+	const reader = new FileReader();
+	reader.onload = () => {
+		let fileData = reader.result;
+		// 读取excel文件
+		const wb = XLSX.read(fileData, { type: 'binary' });
+		// 获取第一个sheet
+		const wsname = wb.SheetNames[0];
+		const ws = wb.Sheets[wsname];
+		let startRow = 7
+		let allDataInExcel = []
+		while (ws[`A${startRow}`] && ws[`A${startRow}`].v) {
+			let oneData = {}
+			oneData['start'] = ws[`A${startRow}`].v;
+			oneData['end'] = ws[`B${startRow}`].v;
+			oneData['pci'] = ws[`S${startRow}`].v;
+			oneData['rqi'] = ws[`T${startRow}`].v;
+			oneData['rdi'] = ws[`U${startRow}`].v;
+			allDataInExcel.push(oneData)
+			startRow++
+		}
+		console.log(`alldata: ${JSON.stringify(allDataInExcel)}`)
+		//再把allDataInExcel里面的数据，根据算法算出养护策略，再传到后台写到数据库里面
+	};
+	reader.readAsBinaryString(file.raw);
+
+
+};
 </script>
 
 <style lang="scss" scoped>
